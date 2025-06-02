@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 #!/usr/bin/env python
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
@@ -76,7 +78,6 @@ benchmark,name=sort,version=28.0.0,datafusion_version=28.0.0,num_cpus=8 query="s
 }
 """
 
-from __future__ import annotations
 
 import json
 from dataclasses import dataclass
@@ -84,6 +85,7 @@ from typing import Dict, List, Any
 from pathlib import Path
 from argparse import ArgumentParser
 import sys
+import subprocess
 print = sys.stdout.write
 
 
@@ -128,16 +130,25 @@ class Context:
     start_time: int
     arguments: List[str]
     name: str
+    commit_timestamp: int
 
     @classmethod
     def load_from(cls, data: Dict[str, Any]) -> Context:
+        get_timestamp = subprocess.run(
+        ["git", "log", "-1", "--format=%ct", data["datafusion_version"]],
+        capture_output=True,
+        text=True,
+        check=True
+    )
+        commit_timestamp = get_timestamp.stdout.strip()
         return cls(
             benchmark_version=data["benchmark_version"],
             datafusion_version=data["datafusion_version"],
             num_cpus=data["num_cpus"],
             start_time=data["start_time"],
             arguments=data["arguments"],
-            name=data["arguments"][0]
+            name=data["arguments"][0],
+            commit_timestamp=commit_timestamp
         )
 
 
@@ -164,7 +175,7 @@ def lineformat(
 ) -> None:
     baseline = BenchmarkRun.load_from_file(baseline)
     context = baseline.context
-    benchamrk_str = f"benchmark,name={context.name},version={context.benchmark_version},datafusion_version={context.datafusion_version},num_cpus={context.num_cpus}"
+    benchamrk_str = f"benchmark,name={context.name},version={context.benchmark_version},datafusion_version={context.datafusion_version},num_cpus={context.num_cpus},commit_timestamp={context.commit_timestamp}"
     for query in baseline.queries:
         query_str = f"query=\"{query.query}\""
         timestamp = f"{query.start_time*10**9}"
@@ -180,7 +191,7 @@ def main() -> None:
     )
     options = parser.parse_args()
 
-    lineformat(options.baseline_path)
+    lineformat(options.path)
 
 
 
